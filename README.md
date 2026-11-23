@@ -107,19 +107,20 @@ NetToolbox/
 
 ## 八、GitHub 同步
 
-- 云端仓库：<https://github.com/mafaliang/Python>（公开仓库），**本项目源码即仓库根目录**，无子目录层级。
+- 云端仓库：<https://github.com/mafaliang/NetToolbox>（公开仓库），**本项目源码即仓库根目录**，无子目录层级。
 - 仅同步源码与文档；`build/`、`dist/`、`__pycache__`、`.spec`、`.nettoolbox.json` 已由 `.gitignore` 排除。
 - 本地目录：
   - **实际运行/改代码**：`C:\Users\lenovo\Desktop\NetToolbox`（改完在本地验证效果）。
-  - Git 工作副本：`D:\WorkBuddy\2026-11-23-10-46-25\_github_sync`（含 `.git`，源码在根目录）。
+  - **Git 工作副本（当前有效）**：`D:\WorkBuddy\2026-11-23-10-46-25\_gh_clean`（干净单提交历史，已配好 origin 与 upstream）。
+  - 旧历史副本（仅备份，已断开独立历史）：`D:\WorkBuddy\2026-11-23-10-46-25\_github_sync`。
   - 资料库有 zip 备份。
-- 换机恢复：`git clone https://github.com/mafaliang/Python.git`，克隆后根目录即本项目源码，直接 `py -3 main.py` 运行。
+- 换机恢复：`git clone https://github.com/mafaliang/NetToolbox.git`，克隆后根目录即本项目源码，直接 `py -3 main.py` 运行。
 
 ### 更新与推送流程
 
 1. 改代码：在桌面副本 `C:\Users\lenovo\Desktop\NetToolbox` 修改并本地验证。
-2. 同步到 Git 副本：把改动文件复制到 `_github_sync\` 同名路径（改 README 时别漏）。
-3. 提交并推送（在 `_github_sync` 根目录执行）：
+2. 同步到源码目录 `NetToolbox\src\NetToolbox\`，再同步到 Git 副本 `_gh_clean\` 同名路径（改 README 时别漏）。
+3. 提交并推送（在 `_gh_clean` 根目录执行）：
    ```bat
    git add .
    git commit -m "变更说明"
@@ -129,7 +130,50 @@ NetToolbox/
 ### 认证与网络排障（重要）
 
 - **认证用 PAT，不用连接器**：WorkBuddy 的 GitHub 连接器 MCP 无 contents 写权限（403/401），推送走本地 git CLI + Personal Access Token。
-- **PAT 配置**：GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens，Resource owner 选 `mafaliang`，Repository access 勾选 `Python`，权限 `Contents: Read and write`。生成后写入 Windows 凭据管理器条目 `git:https://github.com`（用户名 `mafaliang`，密码 = token）。
+- **PAT 配置**：GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens，Resource owner 选 `mafaliang`，Repository access 勾选 `NetToolbox`，权限 `Contents: Read and write`。生成后写入 Windows 凭据管理器条目 `git:https://github.com`（用户名 `mafaliang`，密码 = token）。**换仓库或新建仓库后必须重新勾选该仓库并更新凭据，否则 403。**
 - **CMD 找不到 git**：WorkBuddy 自带便携版 git 不在系统 PATH。用完整路径 `G:\HRSoftstore\Install\WorkBuddy\resources\vendor\PortableGit\mingw64\bin\git.exe`，或在 WorkBuddy 的 Bash 里执行。
-- **代理导致推送失败**：环境 `HTTP(S)_PROXY` 指向 WorkBuddy 内部代理（端口会变），默认 schannel 后端会报 `schannel: failed to receive handshake`、`CONNECT tunnel failed 502` 或 `Empty reply from server`。推送命令固定加 `-c http.sslBackend=openssl -c http.version=HTTP/1.1`（见上）。绕过代理直连通常更慢或超时，不建议。
-- **校验远程**：`git log -1 origin/main` 看提交；或访问 `https://raw.githubusercontent.com/mafaliang/Python/main/ui/main_window.py` 确认内容。远程与本地仅 CRLF/LF 行尾差异属正常。
+- **代理导致推送失败**：环境 `HTTP(S)_PROXY` 指向 WorkBuddy 内部代理（端口会变，历史上出现过 11589 / 12719 / 13643 / 1631 / 7765），默认 schannel 后端会报 `schannel: failed to receive handshake`、`CONNECT tunnel failed 502` 或 `Empty reply from server`。推送命令固定加 `-c http.sslBackend=openssl -c http.version=HTTP/1.1`（见上）。绕过代理直连通常更慢或超时，不建议。
+- **校验远程**：`git log -1 origin/main` 看提交；或访问 `https://raw.githubusercontent.com/mafaliang/NetToolbox/main/ui/main_window.py` 确认内容。远程与本地仅 CRLF/LF 行尾差异属正常。
+
+### 排障案例：远程报 `did not receive expected object` 怎么处理
+
+现象（多次出现，同一错误）：
+
+```
+remote: fatal: did not receive expected object 9907798d5eca5703a70b916561c2048888419fe5
+error: remote unpack failed: index-pack failed
+ ! [remote rejected] main -> main (failed)
+```
+
+排查与结论：
+
+1. `git ls-remote origin` 为空 → 目标仓库是新建的空仓库，`fetch` 报 `couldn't find remote ref refs/heads/main` 属正常，不是故障。
+2. `git cat-file -t <缺失哈希>` 报 `could not get object info` → **该对象在本地根本不存在**，说明不是本地对象损坏。
+3. `git fsck --full` 无报错、`git repack -a -d -f` 重打包后仍失败 → 本地仓库是健康的。
+4. 走代理 / 绕代理（清空 `HTTP(S)_PROXY` + `-c http.proxy=`）、thin pack / `--no-thin` 四种组合报**同一个哈希** → 与传输通道无关，是**旧历史的对象链路本身不可信**，强修无意义。
+
+解法（实测一次成功）：**不修旧仓库，用最新源码重建干净单提交仓库再推**。
+
+```bat
+:: 1) 拷贝最新源码到新目录（排除 __pycache__ / *.pyc）
+:: 2) 初始化并提交
+git init -b main
+git config core.autocrlf false
+git add -A
+git commit -m "初始提交"
+git remote add origin https://github.com/mafaliang/NetToolbox.git
+
+:: 3) 关闭 bitmap / delta 依赖，整包全量推送
+git -c http.sslBackend=openssl -c http.version=HTTP/1.1 ^
+    -c pack.useBitmaps=false -c repack.usedeltabaseoffset=false ^
+    push --no-thin -u origin main
+```
+
+成功后校验两端哈希一致：
+
+```bat
+git ls-remote origin          :: 输出 HEAD 与 refs/heads/main
+git rev-parse HEAD            :: 应与上面相同
+```
+
+要点：新仓库只有「工作区 tree + 单 commit + 15 个 blob」，不引用任何旧对象，也不会生成 delta，从根上绕开缺失对象。旧仓库保留作备份，不要在其上继续提交。
